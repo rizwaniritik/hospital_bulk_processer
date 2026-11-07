@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hospital Bulk Processor - Dashboard</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body {
+      background-color: #f1f5f9;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      color: #1e293b;
+    }
+    .card {
+      border-radius: 12px;
+      border: 1px solid #e2e8f0;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+    }
+    .badge-status {
+      font-size: 0.85rem;
+      padding: 0.4rem 0.75rem;
+      border-radius: 6px;
+      font-weight: 500;
+    }
+    .stat-box {
+      background-color: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 0.75rem;
+      text-align: center;
+    }
+    .stat-label {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #64748b;
+      margin-bottom: 0.25rem;
+    }
+    .stat-val {
+      font-size: 1.4rem;
+      font-weight: 700;
+    }
+    .table thead th {
+      background-color: #f8fafc;
+      color: #475569;
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      border-bottom: 1px solid #e2e8f0;
+    }
+  </style>
+</head>
+<body class="py-5">
+  <div class="container" style="max-width: 900px;">
+    
+    <!-- Top Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+      <div>
+        <h2 class="fw-bold mb-1">🏥 Hospital Bulk Processor</h2>
+        <p class="text-secondary small mb-0">Interactive Testing Console for Hospital Directory API</p>
+      </div>
+      <div>
+        <a href="/docs" target="_blank" class="btn btn-outline-primary btn-sm me-2">OpenAPI Docs</a>
+        <a href="/health" target="_blank" class="btn btn-outline-secondary btn-sm">Health</a>
+      </div>
+    </div>
+
+    <!-- Upload Card -->
+    <div class="card p-4 mb-4">
+      <h5 class="fw-semibold mb-2">1. Upload Hospital CSV</h5>
+      <p class="text-secondary small mb-3">
+        CSV Columns: <code>name,address,phone</code> (Max 20 hospitals per batch. <code>phone</code> is optional).
+      </p>
+
+      <div class="mb-3">
+        <input class="form-control" type="file" id="csvFileInput" accept=".csv">
+      </div>
+
+      <div class="d-flex gap-2">
+        <button class="btn btn-secondary px-3" onclick="validateCSV()">🔍 Validate CSV First</button>
+        <button class="btn btn-primary px-4" onclick="processBulkCSV()">🚀 Bulk Create &amp; Activate</button>
+      </div>
+
+      <!-- Spinner / Status indicator -->
+      <div id="loadingSpinner" class="mt-3 d-none">
+        <div class="spinner-border spinner-border-sm text-primary me-2" role="status"></div>
+        <span class="text-muted small" id="loadingText">Processing hospitals concurrently...</span>
+      </div>
+    </div>
+
+    <!-- Results Card -->
+    <div id="resultsCard" class="card p-4 d-none">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="fw-semibold mb-0" id="resultTitle">Operation Result</h5>
+        <span id="batchActivatedBadge"></span>
+      </div>
+
+      <!-- Stats Row -->
+      <div id="summaryStats" class="row g-2 mb-3"></div>
+
+      <!-- Results Table -->
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0" id="resultsTable">
+          <thead>
+            <tr>
+              <th style="width: 80px;">Row</th>
+              <th style="width: 140px;">Hospital ID</th>
+              <th>Name</th>
+              <th style="width: 220px;">Status</th>
+            </tr>
+          </thead>
+          <tbody id="resultsTableBody"></tbody>
+        </table>
+      </div>
+
+      <!-- Raw JSON Collapsible -->
+      <details class="mt-3">
+        <summary class="text-muted small cursor-pointer">View Raw JSON Response</summary>
+        <pre class="bg-light p-3 rounded mt-2 small text-dark border" id="rawJson"></pre>
+      </details>
+    </div>
+
+  </div>
+
+  <script>
+    async function validateCSV() {
+      const fileInput = document.getElementById('csvFileInput');
+      if (!fileInput.files.length) return alert('Please select a CSV file first.');
+
+      const formData = new FormData();
+      formData.append('file', fileInput.files[0]);
+
+      toggleLoading(true, 'Validating CSV format & constraints...');
+      try {
+        const res = await fetch('/api/v1/hospitals/bulk/validate', { method: 'POST', body: formData });
+        const data = await res.json();
+        showValidationResult(data);
+      } catch (err) {
+        alert('Validation failed: ' + err.message);
+      } finally {
+        toggleLoading(false);
+      }
+    }
+
+    async function processBulkCSV() {
+      const fileInput = document.getElementById('csvFileInput');
+      if (!fileInput.files.length) return alert('Please select a CSV file first.');
+
+      const formData = new FormData();
+      formData.append('file', fileInput.files[0]);
+
+      toggleLoading(true, 'Creating hospitals concurrently & activating batch...');
+      try {
+        const res = await fetch('/api/v1/hospitals/bulk', { method: 'POST', body: formData });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'Error processing batch');
+        showBulkResult(data);
+      } catch (err) {
+        alert('Bulk processing error: ' + err.message);
+      } finally {
+        toggleLoading(false);
+      }
+    }
+
+    function toggleLoading(show, text) {
+      const spinner = document.getElementById('loadingSpinner');
+      const label = document.getElementById('loadingText');
+      if (show) {
+        label.innerText = text;
+        spinner.classList.remove('d-none');
+      } else {
+        spinner.classList.add('d-none');
+      }
+    }
+
+    function showValidationResult(data) {
+      const card = document.getElementById('resultsCard');
+      card.classList.remove('d-none');
+      document.getElementById('resultTitle').innerText = 'CSV Validation Result';
+      document.getElementById('batchActivatedBadge').innerHTML = data.valid
+        ? '<span class="badge bg-success badge-status">Valid Format</span>'
+        : '<span class="badge bg-danger badge-status">Invalid Format</span>';
+
+      document.getElementById('summaryStats').innerHTML = `
+        <div class="col-6">
+          <div class="stat-box">
+            <div class="stat-label">Total Rows</div>
+            <div class="stat-val text-primary">${data.total_rows}</div>
+          </div>
+        </div>
+        <div class="col-6">
+          <div class="stat-box">
+            <div class="stat-label">Validation Errors</div>
+            <div class="stat-val ${data.errors.length ? 'text-danger' : 'text-success'}">${data.errors.length}</div>
+          </div>
+        </div>
+      `;
+
+      let rowsHtml = '';
+      if (data.errors && data.errors.length) {
+        rowsHtml = `<tr><td colspan="4" class="text-danger py-3">${data.errors.join('<br>')}</td></tr>`;
+      } else {
+        data.preview.forEach(p => {
+          rowsHtml += `<tr>
+            <td>${p.row_number}</td>
+            <td><span class="text-muted">-</span></td>
+            <td class="fw-semibold">${p.name}</td>
+            <td><span class="badge bg-info text-dark badge-status">Valid Row</span></td>
+          </tr>`;
+        });
+      }
+      document.getElementById('resultsTableBody').innerHTML = rowsHtml;
+      document.getElementById('rawJson').innerText = JSON.stringify(data, null, 2);
+    }
+
+    function showBulkResult(data) {
+      const card = document.getElementById('resultsCard');
+      card.classList.remove('d-none');
+      document.getElementById('resultTitle').innerText = 'Batch: ' + data.batch_id;
+      document.getElementById('batchActivatedBadge').innerHTML = data.batch_activated
+        ? '<span class="badge bg-success badge-status">Activated on Directory API</span>'
+        : '<span class="badge bg-warning text-dark badge-status">Not Activated</span>';
+
+      document.getElementById('summaryStats').innerHTML = `
+        <div class="col-3">
+          <div class="stat-box">
+            <div class="stat-label">Total</div>
+            <div class="stat-val">${data.total_hospitals}</div>
+          </div>
+        </div>
+        <div class="col-3">
+          <div class="stat-box">
+            <div class="stat-label">Processed</div>
+            <div class="stat-val text-success">${data.processed_hospitals}</div>
+          </div>
+        </div>
+        <div class="col-3">
+          <div class="stat-box">
+            <div class="stat-label">Failed</div>
+            <div class="stat-val text-danger">${data.failed_hospitals}</div>
+          </div>
+        </div>
+        <div class="col-3">
+          <div class="stat-box">
+            <div class="stat-label">Time</div>
+            <div class="stat-val">${data.processing_time_seconds}s</div>
+          </div>
+        </div>
+      `;
+
+      let rowsHtml = '';
+      data.hospitals.forEach(h => {
+        const isSuccess = h.status === 'created_and_activated' || h.status === 'created';
+        const badgeClass = isSuccess ? 'bg-success' : 'bg-danger';
+        rowsHtml += `<tr>
+          <td>${h.row}</td>
+          <td><code>${h.hospital_id || '-'}</code></td>
+          <td class="fw-semibold">${h.name}</td>
+          <td>
+            <span class="badge ${badgeClass} badge-status">${h.status}</span>
+            ${h.error ? '<small class="text-danger d-block mt-1">' + h.error + '</small>' : ''}
+          </td>
+        </tr>`;
+      });
+      document.getElementById('resultsTableBody').innerHTML = rowsHtml;
+      document.getElementById('rawJson').innerText = JSON.stringify(data, null, 2);
+    }
+  </script>
+</body>
+</html>
+

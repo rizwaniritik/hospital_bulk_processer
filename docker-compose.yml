@@ -1,0 +1,29 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    container_name: hospital-bulk-processor
+    ports:
+      - "8000:8000"
+    environment:
+      # Override any default from config.py via environment variables
+      HOSPITAL_API_BASE_URL: "https://hospital-directory.onrender.com"
+      API_TIMEOUT_SECONDS: "30"
+      MAX_CSV_ROWS: "20"
+      MAX_CONCURRENT_REQUESTS: "5"
+      PORT: "8000"
+      DEBUG: "false"
+    # Mount .env file if it exists (optional — won't fail if absent)
+    env_file:
+      - path: .env
+        required: false
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8000/health').raise_for_status()"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
