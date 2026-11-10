@@ -1,0 +1,202 @@
+{
+  "info": {
+    "_postman_id": "7a3560b3-f09b-4e08-9df8-0123456789ab",
+    "name": "Hospital Bulk Processor API",
+    "description": "Postman Collection for testing the Hospital Bulk Processing System.\nIncludes endpoints for CSV validation, bulk creation, progress polling, and batch management.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://hospital-api.dev-playground.online",
+      "type": "string"
+    },
+    {
+      "key": "batch_id",
+      "value": "550e8400-e29b-41d4-a716-446655440000",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "System & Health",
+      "item": [
+        {
+          "name": "1. Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/health",
+              "host": ["{{base_url}}"],
+              "path": ["health"]
+            },
+            "description": "Liveness check to verify the service is running."
+          },
+          "response": []
+        },
+        {
+          "name": "2. Root - Service Info",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/",
+              "host": ["{{base_url}}"],
+              "path": [""]
+            },
+            "description": "Landing endpoint providing links to documentation and key endpoints."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Hospital Bulk Processing",
+      "item": [
+        {
+          "name": "3. Validate CSV (Dry-Run)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "sample_data/hospitals_sample.csv",
+                  "description": "Select sample_data/hospitals_sample.csv"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/hospitals/bulk/validate",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "hospitals", "bulk", "validate"]
+            },
+            "description": "Pre-validation endpoint. Checks columns, row limits, and missing fields without making external API calls."
+          },
+          "response": []
+        },
+        {
+          "name": "4. Bulk Create Hospitals (Upload CSV)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// Auto-save batch_id from response to collection variable",
+                  "if (pm.response.code === 201) {",
+                  "    var jsonData = pm.response.json();",
+                  "    if (jsonData.batch_id) {",
+                  "        pm.collectionVariables.set('batch_id', jsonData.batch_id);",
+                  "        console.log('Saved batch_id: ' + jsonData.batch_id);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "sample_data/hospitals_sample.csv",
+                  "description": "Attach a CSV file (e.g., sample_data/hospitals_sample.csv)"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/hospitals/bulk",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "hospitals", "bulk"]
+            },
+            "description": "Primary assignment endpoint. Accepts CSV file, creates hospitals concurrently on Hospital Directory API, activates batch, and returns comprehensive report."
+          },
+          "response": []
+        },
+        {
+          "name": "5. Poll Batch Progress",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/hospitals/bulk/{{batch_id}}/progress",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "hospitals", "bulk", "{{batch_id}}", "progress"]
+            },
+            "description": "Polls real-time processing progress for the specified batch ID."
+          },
+          "response": []
+        },
+        {
+          "name": "6. List All Batches",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/hospitals/bulk",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "hospitals", "bulk"]
+            },
+            "description": "Returns a summary list of all bulk batches processed during this server session."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Hospital Directory API (External Reference)",
+      "item": [
+        {
+          "name": "Direct: Get Hospitals by Batch ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "https://hospital-directory.onrender.com/hospitals/batch/{{batch_id}}",
+              "protocol": "https",
+              "host": ["hospital-directory", "onrender", "com"],
+              "path": ["api", "v1", "hospitals", "batch", "{{batch_id}}"]
+            },
+            "description": "Direct call to the external Hospital Directory API to verify records created by our service."
+          },
+          "response": []
+        },
+        {
+          "name": "Direct: Delete Batch",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "https://hospital-directory.onrender.com/hospitals/batch/{{batch_id}}",
+              "protocol": "https",
+              "host": ["hospital-directory", "onrender", "com"],
+              "path": ["api", "v1", "hospitals", "batch", "{{batch_id}}"]
+            },
+            "description": "Direct call to delete a test batch from the external Hospital Directory API."
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}
+
